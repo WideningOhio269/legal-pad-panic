@@ -3,13 +3,27 @@
 ## What this is
 A WarioWare style browser microgame. Everything lives in `index.html`: one canvas, plain JavaScript, no frameworks, no build step. The only outside resource is Google Fonts (Caveat, Gochi Hand). Keep it runnable by just opening the file. If the file gets too large, splitting into plain JS files loaded with script tags is fine; avoid bundlers.
 
-## Code layout (inside index.html)
-1. `CFG` settings block at the top. All tuning numbers live here. Add new tunables here instead of hardcoding.
-2. Hand drawn primitives: `inkPath`, `inkLine`, `inkRect`, `inkEllipse`, `hatchFill`, `htext`. Seeded wobble plus a "boil" that re-rolls at `CFG.boilFps`. Pass a stable `seed` per element so lines boil instead of flicker randomly.
-3. Pre-rendered art: `buildDesk`, `buildPaper`, `makeNoteCanvas` (random curl: flat, corner, lift, dogear, crease).
-4. Games as classes. Short: `Maze`, `Plinko`. Persistent: `TTT`, `Mancala`.
-5. State machine via `MODE`: title, pick, fly, prompt, play, result, rest, restout, lapend, gameover. `update(dt)` then `render()` each frame.
-6. Logical game area is 1000x700, scaled to fit the window.
+## Code layout
+`index.html` is only the page shell (head, fonts, styles, canvas, script tags). All code is plain classic scripts sharing one global scope, loaded in this order (order matters, no modules):
+- `js/config.js`: `CFG` settings block. All tuning numbers live here. Add new tunables here instead of hardcoding.
+- `js/util.js`: canvas and logical size globals (`W`, `H`, `cv`, `ctx`), colors, rng and math helpers, `shade`, `spline`.
+- `js/draw.js`: hand drawn primitives `inkPath`, `inkLine`, `inkRect`, `inkEllipse`, `hatchFill`, `htext`, plus heart/star helpers. Seeded wobble plus a "boil" that re-rolls at `CFG.boilFps`. Pass a stable `seed` per element so lines boil instead of flicker randomly.
+- `js/paper.js`: pre-rendered art (`buildDesk`, `buildPaper`, `makeNoteCanvas` with random curls), the `GAMES`, `SHORTS`, `PERSISTS` tables, and note drawing and hit testing.
+- `js/games/maze.js`, `plinko.js`: short games (`Maze`, `Plinko`).
+- `js/games/tictactoe.js`, `mancala.js`: persistent games (`TTT`, `Mancala`).
+- `js/doodles.js`: rest stage doodles.
+- `js/state.js`: `G` state, `MODE` machine, offers, scoring, ink, skip rule, `choose`, `finishGame`, `afterResult`, `gameOver`, `update(dt)`.
+- `js/render.js`: HUD, stack, sketchbook, stamps, timer, title and game over screens, `render()`.
+- `js/main.js`: input handlers, resize, main loop, boot.
+
+Modes: title, pick, fly, prompt, play, result, rest, restout, lapend, gameover. `update(dt)` then `render()` each frame. Logical game area is 1000x700, scaled to fit the window.
+
+## How to add a new game
+1. Create a class in `js/games/<name>.js` following the interfaces below (start the file with `'use strict';`).
+2. Add an entry to `GAMES` in `js/paper.js` and the id to `SHORTS` or `PERSISTS`. Persistent games also need an instance in `newRun()` (`G.persist`) in `js/state.js`, and short games a branch in `startGame()`.
+3. Add its `<script src="js/games/<name>.js"></script>` tag to `index.html`, before `js/doodles.js`.
+4. Add any tunables (points, times, sizes) to `CFG` in `js/config.js`, including `CFG.win` / `CFG.draw` for persistent games.
+5. Add note art for it in `drawNoteContent` (`js/paper.js`), then playtest.
 
 ## Game interfaces
 Short game: `update(dt)`, `draw()`, `onDown/onMove/onUp(x,y)`, `freeze()` (pauses the timer), `cursor()`, optional `onTimeout()` returning true if handled. Set `done=true` and `outcome='win'|'fail'`.
