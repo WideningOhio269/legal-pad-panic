@@ -27,7 +27,10 @@ const CFG = {
   mazeLaps: [ {c:9,r:5,k:0.2}, {c:8,r:5,k:0.25}, {c:7,r:4,k:0.29}, {c:6,r:4,k:0.33}, {c:5,r:3,k:0.36} ],
   mazeMaxCell: 64,
   mazeHits: 2,                      // wall hits allowed before you fail
-  mazeGrace: 0.7,                   // seconds of no-hit after bumping a wall
+  mazePause: 0.8,                   // seconds the game and timer stop after a bump
+  mazeGrace: 0.8,                   // seconds of no-hit after the pause ends
+  mazeGrab: 0.6,                    // how close (in cells) you must press to the ball to pick it up
+  mazeLeash: 1.5,                   // drag farther than this (in cells) from the ball and you drop it
   mazeSpeed: 6.5,                   // cells per second
   plinkoRows: [7,8,9,10],
   plinkoStarSlots: [3,2,1,1],

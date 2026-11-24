@@ -5,7 +5,7 @@ class Maze {
     const ML = CFG.mazeLaps[Math.min(level-1, CFG.mazeLaps.length-1)];
     const c=ML.c, r=ML.r; this.c=c; this.r=r; this.k=ML.k;
     this.cs = Math.floor(Math.min(620/c, 360/r, CFG.mazeMaxCell));
-    this.hits=0; this.grace=0; this.hitMarks=[];
+    this.hits=0; this.grace=0; this.pause=0; this.hitMarks=[]; this.flashWall=null; this.bumpAt=null;
     this.ox = 500 - c*this.cs/2; this.oy = 395 - r*this.cs/2;
     this.cells = []; for(let i=0;i<c*r;i++) this.cells.push({n:1,e:1,s:1,w:1});
     const vis = new Array(c*r).fill(false), st=[[ri(0,c-1), ri(0,r-1)]]; vis[st[0][1]*c+st[0][0]] = true;
@@ -39,17 +39,30 @@ class Maze {
     if(L&&C.w) return false; if(Rt&&C.e) return false; if(Tp&&C.n) return false; if(B&&C.s) return false;
     return true;
   }
-  freeze(){ return this.done; }
+  freeze(){ return this.done || this.pause>0; }
+  nearestWall(hx,hy){
+    const cs=this.cs, px=this.ox+hx*cs, py=this.oy+hy*cs; let best=null, bd=1e9;
+    for(const w of this.walls){
+      const vx=w[2]-w[0], vy=w[3]-w[1], L=vx*vx+vy*vy||1;
+      const t=Math.max(0, Math.min(1, ((px-w[0])*vx+(py-w[1])*vy)/L));
+      const d=Math.hypot(px-(w[0]+vx*t), py-(w[1]+vy*t));
+      if(d<bd){ bd=d; best=w; }
+    }
+    return best;
+  }
   hit(hx,hy){
-    this.hits++; this.hitMarks.push([hx,hy,newSeed()]); this.grace=CFG.mazeGrace;
+    this.hits++; this.hitMarks.push([hx,hy,newSeed()]);
+    this.pause=CFG.mazePause; this.grace=CFG.mazeGrace; this.drag=false;
+    this.flashWall=this.nearestWall(hx,hy); this.bumpAt=[hx,hy];
     const idx=Math.max(0, this.trail.length-4); this.px=this.trail[idx][0]; this.py=this.trail[idx][1]; this.trail.length=idx+1;
     if(G) G.shake=0.15;
     if(this.hits>=CFG.mazeHits){ this.done=true; this.outcome='fail'; }
   }
   update(dt){
+    if(this.done) return;
+    if(this.pause>0){ this.pause-=dt; return; }   // game and timer are stopped (see freeze)
     if(this.grace>0) this.grace-=dt;
-    if(this.done || !this.drag) return;
-    if(this.grace>CFG.mazeGrace-0.35) return;   // brief freeze right after a bump
+    if(!this.drag) return;
     const tx=(this.mx-this.ox)/this.cs, ty=(this.my-this.oy)/this.cs;
     let dx=tx-this.px, dy=ty-this.py; const d=Math.hypot(dx,dy); if(d<0.02) return;
     let move=Math.min(d, CFG.mazeSpeed*dt); const steps=Math.ceil(move/0.03); const st=move/steps;
@@ -64,8 +77,10 @@ class Maze {
     const lt=this.trail[this.trail.length-1]; if(Math.hypot(lt[0]-this.px, lt[1]-this.py)>0.12) this.trail.push([this.px,this.py]);
     if(Math.floor(this.px)===this.exit[0] && Math.floor(this.py)===this.exit[1]){ this.done=true; this.outcome='win'; }
   }
-  onDown(x,y){ this.drag=true; this.mx=x; this.my=y; }
-  onMove(x,y){ this.mx=x; this.my=y; }
+  // pen grip: you must press near the ball to pick it up, and dragging too far drops it
+  dist(x,y){ return Math.hypot((x-this.ox)/this.cs-this.px, (y-this.oy)/this.cs-this.py); }
+  onDown(x,y){ this.mx=x; this.my=y; if(!this.done && this.dist(x,y)<=CFG.mazeGrab) this.drag=true; }
+  onMove(x,y){ this.mx=x; this.my=y; if(this.drag && this.dist(x,y)>CFG.mazeLeash) this.drag=false; }
   onUp(){ this.drag=false; }
   cursor(){ return this.drag ? 'grabbing' : 'grab'; }
   draw(){
@@ -76,9 +91,18 @@ class Maze {
     drawStar(ox+(this.exit[0]+0.5)*cs, oy+(this.exit[1]+0.5)*cs, cs*0.26, this.seed+4);
     for(const h of this.hitMarks){ const x=ox+h[0]*cs, y=oy+h[1]*cs; inkLine(x-9,y-9,x+9,y+9,{c:RED,w:3,seed:h[2],os:2}); inkLine(x+9,y-9,x-9,y+9,{c:RED,w:3,seed:h[2]+1,os:2}); }
     const dx=ox+this.px*cs, dy=oy+this.py*cs, rad=cs*this.k*0.92;
-    const blink = this.grace>0 && Math.floor(T*12)%2===0;
-    if(!blink) inkEllipse(dx,dy,rad,rad,{fill:'#2b3a8c', c:INK, w:2, seed:this.seed+5});
-    if(!this.moved){ htext('hold and drag, do not touch the walls', dx+rad+8, dy-rad-6, {size:20, c:RED, seed:this.seed+6, rot:-0.04}); }
+    const paused = this.pause>0;
+    if(paused && this.flashWall){ const w=this.flashWall; inkLine(w[0],w[1],w[2],w[3], {c:RED, w:4.5, seed:w[4]+50, os:3}); }
+    if(paused && this.bumpAt){ htext('bump!', ox+this.bumpAt[0]*cs+14, oy+this.bumpAt[1]*cs-14, {size:26, c:RED, seed:this.seed+8, rot:-0.08}); }
+    const blink = !paused && this.grace>0 && Math.floor(T*12)%2===0;
+    // lift shadow while held
+    if(this.drag && !blink) inkEllipse(dx+3,dy+5,rad,rad,{fill:'rgba(0,0,0,0.18)', c:'rgba(0,0,0,0)', w:0, seed:this.seed+9, still:true});
+    if(!blink) inkEllipse(dx,dy-(this.drag?2:0),rad,rad,{fill:'#2b3a8c', c:INK, w:2, seed:this.seed+5});
+    // pause ring shrinks toward the ball as control comes back
+    if(paused){ const rr=rad+6+10*(this.pause/CFG.mazePause); inkEllipse(dx,dy,rr,rr,{c:RED, w:1.8, seed:this.seed+10, still:true}); }
+    else if(!this.drag && !this.done){ const rr=rad+7+Math.sin(T*6)*2; inkEllipse(dx,dy,rr,rr,{c:GRAPHITE, w:1.5, seed:this.seed+11, still:true}); }
+    if(!this.moved){ htext('press the ball and drag, do not touch the walls', dx+rad+10, dy-rad-10, {size:20, c:RED, seed:this.seed+6, rot:-0.04}); }
+    else if(!this.drag && !paused && !this.done){ htext('press the ball to keep going', dx, dy-rad-16, {size:19, c:GRAPHITE, align:'center', seed:this.seed+12}); }
     const left=CFG.mazeHits-this.hits;
     htext(left===1 ? 'one more bump and you are out' : `wall bumps left: ${left}`, 500, oy-14, {size:21, c:left===1?RED:GRAPHITE, align:'center', seed:this.seed+7+this.hits});
   }
