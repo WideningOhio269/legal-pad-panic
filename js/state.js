@@ -5,18 +5,28 @@ let HI = 0; try { HI = parseInt(localStorage.getItem('lpp_hi')||'0',10) || 0; } 
 const mouse = { x:0, y:0, down:false };
 let titleBtn = null, againBtn = null;
 
+/* Playtest mode: open index.html?game=maze (or plinko, ttt, mancala), optional &lap=3.
+   Skips the title, serves only that game every round, and never ends the run. */
+const TEST = (()=>{ try{ const p=new URLSearchParams(location.search), id=p.get('game'); if(!id || !GAMES[id]) return null; return {id, lap:Math.max(1, parseInt(p.get('lap')||'1',10)||1)}; }catch(e){ return null; } })();
+function testNext(){
+  G.pick=0; G.hearts=CFG.hearts; G.ink=CFG.inkMax;
+  makeOffers(); const n=G.offers.find(o=>o.id===TEST.id); n.hover=0; choose(n);
+}
+
 function newRun(){
   G = { score:0, hearts:CFG.hearts, ink:CFG.inkMax, streak:0, bestStreak:0, lap:1, pick:0,
         shortDeck:[], offers:[], discard:null, stack:[], stackOut:[], fly:null, cur:null, timer:null,
         persist:{ ttt:new TTT(), mancala:new Mancala() },
         stats:{ won:0, lost:0, drawn:0, shortWon:0, shortFailed:0 }, drawings:[], popups:[], shake:0, result:null, rest:null, book:-592, newBest:false, goFlip:0 };
+  if(TEST){ G.lap=TEST.lap; buildShortDeck(); testNext(); return; }
   buildShortDeck(); makeOffers(); setMode('pick');
 }
 function setMode(m){ MODE=m; MT=0; }
 function buildShortDeck(){ const d=[]; for(const id of SHORTS) for(let k=0;k<CFG.shortCopies;k++) d.push(id); for(let k=0;k<CFG.shortExtras;k++) d.push(pick(SHORTS)); G.shortDeck=shuffle(d); }
 function drawShort(){ return G.shortDeck.length ? G.shortDeck.pop() : pick(SHORTS); }
 function makeOffers(){
-  const a=drawShort(); const b = R()<CFG.doubleShortChance ? drawShort() : pick(PERSISTS);
+  let a=drawShort(), b = R()<CFG.doubleShortChance ? drawShort() : pick(PERSISTS);
+  if(TEST){ if(SHORTS.includes(TEST.id)){ a=b=TEST.id; } else { a=TEST.id; b=drawShort(); } }
   G.offers = shuffle([a,b]).map((id,k)=>{ const n=makeNote(id); n.gold = R()<CFG.goldChance; n.x = k===0?330:670; n.y=372; n.rot=(R()-0.5)*0.17; n.enter=-k*0.08; return n; });
   G.pick++;
 }
@@ -81,6 +91,7 @@ function finishGame(){
 function afterResult(){
   const c=G.cur; if(c && c.kind==='persist' && c.g.needsReset){ c.g.needsReset=false; c.g.reset(); }
   G.cur=null;
+  if(TEST) return testNext();
   if(G.hearts<=0) return gameOver();
   if(G.pick===CFG.restAfter){ G.rest={strokes:[], cur:null, tab:'draw', doodle:ri(0,DOODLES.length-1), flip:0, seed:newSeed()}; setMode('rest'); return; }
   if(G.pick>=CFG.lapPicks){ G.stackOut=G.stack.map(s=>Object.assign({},s,{vx:rr(300,700),vy:rr(-200,100),vr:rr(-3,3)})); G.stack=[]; setMode('lapend'); return; }

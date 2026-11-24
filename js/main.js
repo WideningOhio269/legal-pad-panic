@@ -55,6 +55,6 @@ function frame(now){
   } catch(err){ console.error(err); }
   requestAnimationFrame(frame);
 }
-function boot(){ resize(); buildPaper(); requestAnimationFrame(frame); }
+function boot(){ resize(); buildPaper(); if(TEST) newRun(); requestAnimationFrame(frame); }
 const fontsReady = document.fonts ? Promise.race([Promise.all([document.fonts.load('600 24px "Caveat"'), document.fonts.load('700 24px "Caveat"'), document.fonts.load('24px "Gochi Hand"')]), new Promise(r=>setTimeout(r,2500))]) : Promise.resolve();
 fontsReady.then(boot, boot);

@@ -44,4 +44,6 @@ Persistent game: same, plus `begin()` each appearance, `reset()` for a new game,
 Games still to add: sudoku (short), minesweeper (short), poker (long, each hand won or lost, fold/call/raise, AI bluffs sometimes), backgammon (long, shortened). Add them one at a time and playtest between.
 
 ## Testing
+Playtest a single game: open `index.html?game=maze` (also `plinko`, `ttt`, `mancala`), optional `&lap=3` for later-lap difficulty. It skips the title, serves only that game every round, and never ends the run (hearts and ink refill). The code is `TEST` and `testNext()` in `js/state.js`. Add new games to `GAMES` and they work automatically.
+
 Open index.html in a browser. Headless check: load the page with Playwright, call `newRun()`, force offers with `G.offers=[...]` and `choose()`, and watch for console errors.
